@@ -1,0 +1,54 @@
+name: DevOps Capstone CI Pipeline
+
+on:
+  push:
+    branches: [ main, dev, ci-pipeline ]
+  pull_request:
+    branches: [ main, dev, ci-pipeline ]
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pytest
+
+      - name: Lint Code with Flake8
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Execute System Audit Script Test Run
+        run: |
+          python sys_audit.py /etc/passwd
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Optimized Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false
+          tags: devops-capstone:latest
+          load: true
+
+      - name: Verify Container Execution
+        run: |
+          docker run --rm devops-capstone:latest /etc/passwd
